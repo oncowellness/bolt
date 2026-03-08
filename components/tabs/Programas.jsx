@@ -3,15 +3,76 @@ import { C } from '../../styles/theme';
 import { Panel, SH, Th, Td, IE, Badge, btnStyle, inp } from '../UI';
 import { calcProg } from '../../utils/helpers';
 
+const AREA_PREFIXES = {
+  'FX': 'Fisioterapia',
+  'PS': 'Psico-Oncología',
+  'NU': 'Nutrición',
+  'ED': 'Digital',
+  'PA': 'Paliativos',
+  'SX': 'Sexología',
+  'ES': 'Estética',
+  'TS': 'Trabajo Social',
+  'TO': 'Terapia Ocupacional',
+};
+
 export const Programas = memo(({ programas, setProgramas, paquetes, setPaquetes }) => {
   const [filtro, setFiltro] = useState('Todos');
   const [subTab, setSubTab] = useState('programas');
   const [del, setDel] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newProg, setNewProg] = useState({
+    nombre: '',
+    fase: 'F1',
+    precio: 60,
+    coste: 25,
+    pacientes: 20,
+    sesiones: 8,
+  });
+  const [selectedPrefix, setSelectedPrefix] = useState('FX');
+
   const areas = useMemo(() => ["Todos", ...new Set(programas.map(p => p.area))], [programas]);
   const cp = useMemo(() => programas.map(calcProg), [programas]);
   const filtrados = useMemo(() => filtro === "Todos" ? cp : cp.filter(p => p.area === filtro), [filtro, cp]);
   const mc = (m) => (m >= 0.6 ? C.green : m >= 0.5 ? C.yellow : C.orange);
   const paqColors = [C.red, C.orange, C.yellow, C.brand, C.purple];
+
+  const openModal = (prefix) => {
+    setSelectedPrefix(prefix);
+    setNewProg({
+      nombre: '',
+      fase: 'F1',
+      precio: 60,
+      coste: 25,
+      pacientes: 20,
+      sesiones: 8,
+    });
+    setModalOpen(true);
+  };
+
+  const handleCreateProgram = () => {
+    const area = AREA_PREFIXES[selectedPrefix] || 'Fisioterapia';
+    const existingCodesWithPrefix = programas.filter(p => p.codigo.startsWith(selectedPrefix + '-')).map(p => p.codigo);
+    let nextNumber = 1;
+    while (existingCodesWithPrefix.includes(`${selectedPrefix}-${String(nextNumber).padStart(2, '0')}`)) {
+      nextNumber++;
+    }
+    const newCodigo = `${selectedPrefix}-${String(nextNumber).padStart(2, '0')}`;
+
+    setProgramas((prev) => [
+      ...prev,
+      {
+        codigo: newCodigo,
+        nombre: newProg.nombre || 'Nuevo programa',
+        area,
+        fase: newProg.fase,
+        precio: +newProg.precio,
+        coste: +newProg.coste,
+        pacientes: +newProg.pacientes,
+        sesiones: +newProg.sesiones,
+      },
+    ]);
+    setModalOpen(false);
+  };
 
   const upd = (codigo, field, val) =>
     setProgramas((prev) =>
@@ -137,7 +198,18 @@ export const Programas = memo(({ programas, setProgramas, paquetes, setPaquetes 
                   {filtrados.map((p) => (
                     <tr key={p.codigo} className="ow-row">
                       <Td>
-                        <Badge text={p.codigo} color={C.blue} />
+                        <span
+                          onClick={() => {
+                            const prefix = p.codigo.split('-')[0];
+                            if (AREA_PREFIXES[prefix]) {
+                              openModal(prefix);
+                            }
+                          }}
+                          style={{ cursor: 'pointer' }}
+                          title="Clic para crear un nuevo programa con este prefijo"
+                        >
+                          <Badge text={p.codigo} color={C.blue} />
+                        </span>
                       </Td>
                       <Td>
                         <IE
@@ -423,6 +495,179 @@ export const Programas = memo(({ programas, setProgramas, paquetes, setPaquetes 
               </div>
             );
           })}
+        </div>
+      )}
+
+      {modalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: C.surf,
+              borderRadius: 16,
+              padding: 32,
+              maxWidth: 600,
+              width: '90%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: C.txt }}>
+                Crear nuevo programa {selectedPrefix}
+              </h3>
+              <button
+                onClick={() => setModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: 24,
+                  color: C.muted,
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 16, padding: 12, background: `${C.blue}08`, border: `1px solid ${C.blue}30`, borderRadius: 10 }}>
+              <div style={{ fontSize: 13, color: C.blue, fontWeight: 600, marginBottom: 4 }}>
+                Area: {AREA_PREFIXES[selectedPrefix]}
+              </div>
+              <div style={{ fontSize: 12, color: C.muted }}>
+                El codigo se generara automaticamente como {selectedPrefix}-XX
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.sub, marginBottom: 6 }}>
+                  Nombre del programa
+                </label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={newProg.nombre}
+                  onChange={(e) => setNewProg(prev => ({ ...prev, nombre: e.target.value }))}
+                  placeholder="Ej: Prehabilitacion oncologica integral"
+                  style={{ ...inp }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.sub, marginBottom: 6 }}>
+                  Fase del Journey
+                </label>
+                <input
+                  type="text"
+                  value={newProg.fase}
+                  onChange={(e) => setNewProg(prev => ({ ...prev, fase: e.target.value }))}
+                  placeholder="Ej: F1-F2"
+                  style={{ ...inp }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.sub, marginBottom: 6 }}>
+                    Precio por sesion (EUR)
+                  </label>
+                  <input
+                    type="number"
+                    value={newProg.precio}
+                    onChange={(e) => setNewProg(prev => ({ ...prev, precio: e.target.value }))}
+                    style={{ ...inp }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.sub, marginBottom: 6 }}>
+                    Coste por sesion (EUR)
+                  </label>
+                  <input
+                    type="number"
+                    value={newProg.coste}
+                    onChange={(e) => setNewProg(prev => ({ ...prev, coste: e.target.value }))}
+                    style={{ ...inp }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.sub, marginBottom: 6 }}>
+                    Pacientes por año
+                  </label>
+                  <input
+                    type="number"
+                    value={newProg.pacientes}
+                    onChange={(e) => setNewProg(prev => ({ ...prev, pacientes: e.target.value }))}
+                    style={{ ...inp }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.sub, marginBottom: 6 }}>
+                    Sesiones por paciente
+                  </label>
+                  <input
+                    type="number"
+                    value={newProg.sesiones}
+                    onChange={(e) => setNewProg(prev => ({ ...prev, sesiones: e.target.value }))}
+                    style={{ ...inp }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ padding: 14, background: `${C.green}08`, border: `1px solid ${C.green}30`, borderRadius: 10 }}>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 4 }}>Vista previa</div>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  <div>
+                    <span style={{ fontSize: 11, color: C.muted }}>Margen: </span>
+                    <strong style={{ fontSize: 14, color: C.green }}>
+                      {newProg.precio > 0 ? (((newProg.precio - newProg.coste) / newProg.precio) * 100).toFixed(1) : '0'}%
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 11, color: C.muted }}>Ingresos anuales: </span>
+                    <strong style={{ fontSize: 14, color: C.brand }}>
+                      {(newProg.precio * newProg.sesiones * newProg.pacientes).toLocaleString('es-ES')} EUR
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+              <button
+                onClick={handleCreateProgram}
+                style={{ ...btnStyle(C.brand), flex: 1 }}
+              >
+                Crear programa
+              </button>
+              <button
+                onClick={() => setModalOpen(false)}
+                style={{ ...btnStyle(C.muted, true) }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
